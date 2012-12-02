@@ -34,6 +34,9 @@ module Twitter
       :user_agent     => 'TwitterStream',
       :timeout        => 0,
       :proxy          => ENV['HTTP_PROXY'],
+      :proxy_type     => ENV['PROXY_TYPE'], # try setting to 'direct' if
+                                            # just setting HTTP_PROXY
+                                            # doesn't work
       :auth           => nil,
       :oauth          => {},
       :filters        => [],
@@ -58,8 +61,29 @@ module Twitter
 
       if options[:proxy]
         proxy_uri = URI.parse(options[:proxy])
-        host = proxy_uri.host
-        port = proxy_uri.port
+
+        case options[:proxy_type]
+        when 'direct'
+          full_url = "http#{'s' if options[:ssl]}://#{options[:host]}"
+          if (options[:ssl] == true && options[:port] != 443 ) ||
+              (options[:ssl] == false && options[:port] != 80 )
+            full_url << ":#{options[:port]}"
+          end
+          full_url << options[:path].to_s
+          options[:path] = full_url
+
+          options[:host] = host = proxy_uri.host
+          options[:port] = port = proxy_uri.port
+          options[:ssl] = proxy_uri.scheme == "https"
+
+          # With a direct proxied-connection, subsequent requests can be
+          # issued in a more typical way. 
+          options[:proxy] = nil
+
+        else
+          host = proxy_uri.host
+          port = proxy_uri.port
+        end
       end
 
       connection = EventMachine.connect host, port, self, options
@@ -257,7 +281,14 @@ module Twitter
       end
 
       data << "#{@options[:method]} #{request_uri} HTTP/1.1"
-      data << "Host: #{@options[:host]}"
+
+      request = URI.parse(request_uri)
+      if (request.class == URI::HTTPS) || (request.class == URI::HTTPS)
+        data << "Host: #{request.host}"
+      else
+        data << "Host: #{@options[:host]}"
+      end
+
       data << 'Accept: */*'
       data << "User-Agent: #{@options[:user_agent]}" if @options[:user_agent]
 

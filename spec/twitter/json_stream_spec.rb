@@ -64,8 +64,22 @@ describe JSONStream do
         opts[:host].should == 'stream.twitter.com'
         opts[:port].should == 443
         opts[:proxy].should == 'http://my-proxy:8080'
+        URI.parse(opts[:path]).should be_an_instance_of URI::Generic
       end
       stream = JSONStream.connect(:proxy => "http://my-proxy:8080") {}
+    end
+
+    it "should connect to the proxy directly if called for" do
+      EM.should_receive(:connect).with do |host, port, handler, opts|
+        host.should == 'my-proxy'
+        port.should == 8080
+        opts[:host].should == 'my-proxy'
+        opts[:port].should == 8080
+        opts[:proxy].should == nil
+        URI.parse(opts[:path]).should be_an_instance_of URI::HTTPS
+      end
+      stream = JSONStream.connect(:proxy => "http://my-proxy:8080", 
+        :'proxy_type' => 'direct') {}
     end
 
     it "should not trigger SSL until connection is established" do
